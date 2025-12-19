@@ -1,0 +1,5 @@
+{
+  "name": "SlideGenius AI",
+  "description": "An intelligent presentation builder that uses Gemini AI to generate slide decks, customize layouts, and export ideas quickly.",
+  "requestFramePermissions": []
+}
