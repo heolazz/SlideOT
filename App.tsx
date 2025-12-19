@@ -7,7 +7,8 @@ import { exportPresentationToPDF } from './utils/pdfExport';
 import { 
   Plus, ChevronLeft, ChevronRight, Trash2, Copy,
   MonitorPlay, ZoomIn, ZoomOut, Download, Loader2,
-  Undo, Redo, LayoutTemplate, Menu, X, Edit3, Maximize2
+  Undo, Redo, LayoutTemplate, Menu, X, Edit3, Maximize2,
+  Smartphone
 } from 'lucide-react';
 
 // 1. UPDATED INITIAL SLIDES (Generic Placeholders & Default Theme)
@@ -69,11 +70,40 @@ const App: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [zoom, setZoom] = useState(0.65);
   const [presentationScale, setPresentationScale] = useState(1);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   
   // Mobile UI States
   const [showMobileList, setShowMobileList] = useState(false);
   const [showMobileEditor, setShowMobileEditor] = useState(false);
   const previewContainerRef = useRef<HTMLDivElement>(null);
+
+  // PWA Install Prompt Listener
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      // Prevent the mini-infobar from appearing on mobile
+      e.preventDefault();
+      // Stash the event so it can be triggered later.
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    // Show the install prompt
+    deferredPrompt.prompt();
+    // Wait for the user to respond to the prompt
+    const { outcome } = await deferredPrompt.userChoice;
+    // Optionally, send analytics event with outcome of user choice
+    console.log(`User response to the install prompt: ${outcome}`);
+    // We've used the prompt, and can't use it again, throw it away
+    setDeferredPrompt(null);
+  };
 
   // Auto-fit logic for Editor Preview
   useEffect(() => {
@@ -291,8 +321,8 @@ const App: React.FC = () => {
              <div className="flex items-center gap-3">
                 <div className="w-8 h-8 flex items-center justify-center bg-[#0857C3] text-white rounded-sm"><LayoutTemplate size={16} /></div>
                 <div className="flex flex-col">
-                    <h1 className="text-sm font-bold text-zinc-900 leading-none tracking-tight font-grotesk uppercase hidden sm:block">BRI SlideGen</h1>
-                    <h1 className="text-sm font-bold text-zinc-900 leading-none tracking-tight font-grotesk uppercase sm:hidden">SlideOT</h1>
+                    <h1 className="text-sm font-bold text-zinc-900 leading-none tracking-tight font-grotesk uppercase hidden sm:block">BRI SlideGenius</h1>
+                    <h1 className="text-sm font-bold text-zinc-900 leading-none tracking-tight font-grotesk uppercase sm:hidden">SlideGenius</h1>
                     <span className="text-[10px] text-zinc-400">Autosaved</span>
                 </div>
              </div>
@@ -305,6 +335,17 @@ const App: React.FC = () => {
          </div>
 
          <div className="flex items-center gap-2">
+            {/* Install App Button (Only visible if deferredPrompt exists) */}
+            {deferredPrompt && (
+                <button 
+                  onClick={handleInstallClick} 
+                  className="flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-sm text-xs font-semibold uppercase tracking-wider text-[#0857C3] hover:bg-[#0857C3]/10 transition-colors border border-transparent"
+                >
+                    <Smartphone size={14} />
+                    <span className="hidden sm:inline">Install App</span>
+                </button>
+            )}
+
             <button onClick={handleExport} disabled={isExporting} className="flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-sm text-xs font-semibold uppercase tracking-wider text-zinc-600 hover:bg-zinc-100 transition-colors border border-transparent hover:border-zinc-200">
                 {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                 <span className="hidden sm:inline">{isExporting ? 'Exporting...' : 'Export PDF'}</span>
@@ -321,17 +362,17 @@ const App: React.FC = () => {
         
         {/* Left Sidebar (Slide List) - Responsive Drawer */}
         <div className={`
-            fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-zinc-200 transform transition-transform duration-300 ease-in-out pt-14
-            lg:relative lg:translate-x-0 lg:pt-0 lg:w-60 lg:flex flex-col
+            fixed top-14 bottom-0 left-0 z-40 w-64 bg-white border-r border-zinc-200 transform transition-transform duration-300 ease-in-out
+            lg:relative lg:translate-x-0 lg:top-0 lg:w-60 lg:flex flex-col lg:h-full
             ${showMobileList ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:shadow-none'}
         `}>
             {/* Mobile Header for Sidebar */}
-            <div className="lg:hidden flex items-center justify-between p-4 border-b border-zinc-100 bg-white">
+            <div className="lg:hidden flex items-center justify-between p-4 border-b border-zinc-100 bg-white shrink-0">
                 <span className="font-bold text-xs uppercase text-zinc-500">All Slides</span>
                 <button onClick={() => setShowMobileList(false)}><X size={16} className="text-zinc-400"/></button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin h-full">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
                 {slides.map((slide, index) => (
                     <div key={slide.id} className="flex gap-3 group">
                         <div className="w-4 text-right pt-2 text-[10px] font-mono text-zinc-400 group-hover:text-zinc-900">{String(index + 1).padStart(2, '0')}</div>
@@ -391,12 +432,13 @@ const App: React.FC = () => {
 
         {/* Right Sidebar (Editor) - Responsive Drawer */}
         <div className={`
-            fixed inset-y-0 right-0 z-50 bg-white border-l border-zinc-200 transform transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none
-            w-[85vw] sm:w-[400px] lg:w-80 lg:relative lg:translate-x-0 lg:flex flex-col pt-14 lg:pt-0
+            fixed top-14 bottom-0 right-0 z-50 bg-white border-l border-zinc-200 transform transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none
+            w-[85vw] sm:w-[400px] lg:w-80 lg:relative lg:translate-x-0 lg:top-0 lg:h-full lg:flex flex-col
+            flex flex-col
             ${showMobileEditor ? 'translate-x-0' : 'translate-x-full'}
         `}>
             {/* Mobile Header for Editor */}
-            <div className="lg:hidden flex items-center justify-between p-4 border-b border-zinc-100 bg-white">
+            <div className="lg:hidden flex items-center justify-between p-4 border-b border-zinc-100 bg-white shrink-0">
                 <div className="flex items-center gap-2">
                     <Edit3 size={14} className="text-[#0857C3]"/>
                     <span className="font-bold text-xs uppercase text-zinc-900">Edit Slide</span>
@@ -404,7 +446,7 @@ const App: React.FC = () => {
                 <button onClick={() => setShowMobileEditor(false)} className="p-1 hover:bg-zinc-100 rounded"><X size={18} className="text-zinc-500"/></button>
             </div>
 
-            <div className="h-full overflow-y-auto">
+            <div className="flex-1 overflow-y-auto min-h-0">
                 <SlideEditor key={currentSlide.id} slide={currentSlide} onUpdate={handleUpdateSlide} onGroupUpdate={handleGroupUpdate}/>
             </div>
         </div>
